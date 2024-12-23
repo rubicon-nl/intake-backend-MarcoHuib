@@ -1,0 +1,53 @@
+name: 'Intake_$(date:yyyyMMdd)$(rev:.r)'
+
+pr:
+- main
+
+pool:
+  vmImage: windows-latest
+
+variables:
+  buildConfiguration: 'Release'
+
+jobs:
+- job: Verify
+  displayName: Build & validate
+
+  steps:
+  - task: SonarCloudPrepare@2
+    displayName: Prepare analysis on SonarCloud
+    inputs:
+      SonarCloud: Sonarcloud
+      organization: rubicon-bv 
+      scannerMode: 'MSBuild'
+      projectKey: rubicongroup_Rubicon.IntakeSolutionAnalyzer
+      projectName: rubicongroup_Rubicon.IntakeSolutionAnalyzer
+      extraProperties: |
+        sonar.exclusions=**/obj/**,**/*.dll
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Restore project dependencies'
+    inputs:
+      command: 'restore'
+      projects: '**/*.sln'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Build the project - $(buildConfiguration)'
+    inputs:
+      command: 'build'
+      arguments: '--no-restore --configuration $(buildConfiguration)'
+      projects: '**/*.sln'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet test'
+    inputs:
+      command: 'test'
+      arguments: '--configuration $(buildConfiguration) --collect "Code Coverage"'
+      publishTestResults: true
+      projects: '**/*.sln'
+
+  - task: SonarCloudAnalyze@2
+    displayName: Run Code Analysis
+  
+  - task: SonarCloudPublish@2
+    displayName: Publish Quality Gate Result
